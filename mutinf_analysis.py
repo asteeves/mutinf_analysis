@@ -1,5 +1,4 @@
-#!/sw/bin/python
-
+#!/usr/bin/env python
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -9,6 +8,33 @@ import scipy.spatial.distance as ssd
 from mpl_toolkits.mplot3d import Axes3D
 from numpy import float64
 import AnnoteModule
+from extremaModule import *
+
+class ImageBrowser:
+    """
+    sigh    
+    """
+    def __init__(self,clickax,plotax):
+        self.text = clickax.set_title('selected: none')
+        self.selected, = clickax.plot(0,0, 'or', ms=12, alpha=0.4,visible=True)
+        self.clickax=clickax
+        self.plotax=plotax
+#        print 'browser created'
+
+    def onClick(self,event):
+ #       print 'click detected'
+        if event.inaxes == self.clickax:
+ #            print 'you pressed', event.xdata, event.ydata
+             self.xpick = int(round(event.xdata))
+             self.ypick = int(round(event.ydata)) 
+                    
+             self.selected.set_visible(True)
+             self.selected.set_data(self.xpick,self.ypick)
+             self.text.set_text('selected residues: '+str(self.xpick+1)+
+                                                  ','+str(self.ypick+1))
+             plt.draw()
+        
+
 
 class mutInfmat(object):
     """
@@ -31,6 +57,7 @@ class mutInfmat(object):
 	ax = fig.add_subplot(111)
 	im = ax.matshow(self.mymatrix,cmap=plt.cm.Blues)
 	im.set_clim(0,0.5)
+        
 	ax.set_yticks(np.arange(0,len(self.resnames)))
 	ax.set_yticklabels(self.resnames)
 	ax.set_xticks([])
@@ -40,11 +67,45 @@ class mutInfmat(object):
 	    tick.tick1On = False
 	    tick.tick2On = False
 	for label in ax.yaxis.get_ticklabels():
-	    label.set_size(4)
+	    label.set_size(6)
 	ax.set_title('Unclustered MutInf matrix')
-	fig.show()
 	return fig
+    
+    def interUnsort(self):
+        """
+        interactive version of unsorted mutual information matrix. 
+        """
+        ticknum=np.arange(4, len(self.resnames),5)
+        ticklabel=self.resnames[4: len(self.resnames): 5]
 
+        fig = plt.figure(figsize=(20,8))
+        ax = fig.add_subplot(111)
+        #ax2 = fig.add_subplot(122)
+        im = ax.imshow(self.mymatrix,cmap=plt.cm.Blues,interpolation='nearest')
+        im.set_clim(0,0.5)
+
+        ax.set_yticks(ticknum)
+        ax.set_xlim(0,len(self.resnames)-1)
+        ax.set_ylim(0,len(self.resnames)-1)
+	ax.set_yticklabels(ticklabel)
+	for tick in ax.yaxis.get_major_ticks():
+	    tick.label1On = False
+	    tick.label2On = True
+	    tick.tick1On = False
+	    tick.tick2On = False
+	for label in ax.yaxis.get_ticklabels():
+	    label.set_size(8)
+        ax.set_xticks([]) 
+        
+        def clicked(event):
+            print 'click'
+
+        browser = ImageBrowser(ax,ax) 
+        #cid = fig.canvas.mpl_connect('button_press_event', browser.onClick) 
+        #cid2 = fig.canvas.mpl_connect('button_press_event', browser.onpress)
+        #cid3 = fig.canvas.mpl_connect('button_press_event', clicked)
+        return fig, browser 
+       
     def heatmap(self):
         """
 	Plots the mutual information matrix as a heatmap with the associated dendrogram.
@@ -78,9 +139,8 @@ class mutInfmat(object):
 	    tick.tick2On = False
 	for label in axmatrix.xaxis.get_ticklabels():
 	    label.set_rotation(90)
-	    label.set_size(6)
+	    label.set_size(8)
 	fig.suptitle('Clustered MutInf Heatmap',size=12.0)
-        #fig.show()
 
     def twoDplots(self):
         """
@@ -102,14 +162,12 @@ class mutInfmat(object):
 	s3.set_ylabel(r'$|3>$')
 	fig.suptitle('Eigenvector projections')
         return fig
-#	fig.show()
 
     def threeDplot(self,ind1,ind2,ind3):
         fig = plt.figure()
 	ax = Axes3D(fig)
         ax.scatter(self.eigvecs[:,ind1],self.eigvecs[:,ind2],self.eigvecs[:,ind3])
         return fig
-        #fig.show()
     
     def twoDxcc(self,eigind1,eigind2):
         """
@@ -224,64 +282,16 @@ class mutInfmat(object):
 	return filtmat
 
 
-def extrema(x, max = True, min = True, strict = False, withend = False):
-    """
-    This function will index the extrema of a given array x.
-	
-    Options:
-		max		If true, will index maxima
-		min		If true, will index minima
-		strict		If true, will not index changes to zero gradient
-		withend	If true, always include x[0] and x[-1]
-	
-    This function will return a tuple of extrema indicies and values
-    """
-	
-    # This is the gradient
-    from numpy import zeros
-    dx = zeros(len(x))
-    from numpy import diff
-    dx[1:] = diff(x)
-    dx[0] = dx[1]
-	
-    # Clean up the gradient in order to pick out any change of sign
-    from numpy import sign
-    dx = sign(dx)
-	
-    # define the threshold for whether to pick out changes to zero gradient
-    threshold = 0
-    if strict:
-    	threshold = 1
-		
-    # Second order diff to pick out the spikes
-    d2x = diff(dx)
-	
-    if max and min:
-     	d2x = abs(d2x)
-    elif max:
- 	d2x = -d2x
-	
-    # Take care of the two ends
-    if withend:
-	d2x[0] = 2
- 	d2x[-1] = 2
-	
-    # Sift out the list of extremas
-    from numpy import nonzero
-    ind = nonzero(d2x > threshold)[0]
-	
-    return ind, x[ind]
-
-class sector(object):
-    """
-    a sector can be defined as in SCA 4.0, or as a direction in the space spanned by 
-    the eigenvectors associated with the largest (most significant) eigenvalues
-    """
-    def __init__(self,name,members,weights,seccolor):
-        self.name = name
-	self.members = members
-        self.weights = weights
-        self.seccolor = seccolor
+#class sector(object):
+#    """
+#    a sector can be defined as in SCA 4.0, or as a direction in the space spanned by 
+#    the eigenvectors associated with the largest (most significant) eigenvalues
+#    """
+#    def __init__(self,name,members,weights,seccolor):
+#        self.name = name
+#	self.members = members
+#        self.weights = weights
+#        self.seccolor = seccolor
 
 def sortedeig(mymatrix):
     """
@@ -326,7 +336,9 @@ if __name__ == "__main__":
     print 'You are using matplotlib version '+matplotlib.__version__
     print 'You can make changes to global plotting options in '+matplotlib.matplotlib_fname()
     j = mutInfmat('2esk_demo.txt')
-    fig1 = j.twoDxcc(1,2)
-    fig2 = j.twoDplot_vec(4)
-    fig3 = j.threeDplot(0,1,2)
+    #fig1 = j.twoDxcc(1,2)
+    #fig2 = j.twoDplot_vec(4)
+    #fig3 = j.threeDplot(0,1,2)
+    fig, imbrowser = j.interUnsort()
+    cid = fig.canvas.mpl_connect('button_press_event', imbrowser.onClick)
     plt.show()
