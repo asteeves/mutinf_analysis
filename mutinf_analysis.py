@@ -10,16 +10,25 @@ from numpy import float64
 import AnnoteModule
 from extremaModule import *
 
+#temporary stuff for testing Chris' plotting functions
+import sys
+sys.path.append('/home/mcclendon/trajtools/')
+from pairwise_histograms import *
+
+
 class ImageBrowser:
     """
     sigh    
     """
-    def __init__(self,clickax,plotax):
-        self.text = clickax.set_title('selected: none')
-        self.selected, = clickax.plot(0,0, 'or', ms=12, alpha=0.4,visible=True)
-        self.clickax=clickax
-        self.plotax=plotax
+    def __init__(self,axlist):
+        self.text = axlist[0].set_title('selected: none')
+        self.selected, = axlist[0].plot(0,0, 'or', ms=12, alpha=0.4,visible=False)
+        self.clickax=axlist[0]
+        self.axlist=axlist
 #        print 'browser created'
+        self.bigmatrix = Mutinf_Matrix_Chis_Bootstraps('Ubc1p_wt.reslist-nsims6-structs20081-bin30')
+ 
+        self.chilabels=['phi','psi','chi_1','chi_2','chi_3','chi_4']
 
     def onClick(self,event):
  #       print 'click detected'
@@ -27,11 +36,28 @@ class ImageBrowser:
  #            print 'you pressed', event.xdata, event.ydata
              self.xpick = int(round(event.xdata))
              self.ypick = int(round(event.ydata)) 
-                    
              self.selected.set_visible(True)
              self.selected.set_data(self.xpick,self.ypick)
-             self.text.set_text('selected residues: '+str(self.xpick+1)+
-                                                  ','+str(self.ypick+1))
+             self.text.set_text('selected residues: '+str(self.xpick)+
+                                                  ','+str(self.ypick))
+             plt.draw()
+             Pij_top_mutinfs, PiPj_top_mutinfs, top_mutinfs_chi_i, top_mutinfs_chi_j, top_mutinfs, bins, rownames, colnames = self.bigmatrix.pairwise_histogram(self.xpick, self.ypick, '/usr/tmp/Ubc1p_wt/',skip=100) 
+             #'/home/r3/Ubc1/wt/Ubc1p_wt/')
+             print 'Pij_top_mutinfs\n',Pij_top_mutinfs,'\n PiPj_top_mutinfs\n', PiPj_top_mutinfs,'\n top_mutinfs_chi_i\n', top_mutinfs_chi_i, '\n top_mutinfs_chi_j\n', top_mutinfs_chi_j, '\n top mutinfs \n', top_mutinfs, '\n bins\n', bins              
+             self.text.set_text('selected residues: '+colnames[self.xpick]+
+                                                  ','+colnames[self.ypick])
+             smallfmt = dict(cmap=plt.cm.Reds,interpolation='nearest')
+             nullfmt = dict(cmap=plt.cm.Greens,interpolation='nearest')
+             self.axlist[1].contour(Pij_top_mutinfs[0])#, **smallfmt)
+             self.axlist[1].contour(PiPj_top_mutinfs[0])#, **nullfmt)
+             self.axlist[1].xaxis.set_label_text(self.chilabels[int(top_mutinfs_chi_i[0])]) 
+             self.axlist[1].yaxis.set_label_text(self.chilabels[int(top_mutinfs_chi_j[0])]) 
+             self.axlist[2].imshow(Pij_top_mutinfs[1], **smallfmt)
+             self.axlist[2].xaxis.set_label_text(self.chilabels[int(top_mutinfs_chi_i[1])]) 
+             self.axlist[2].yaxis.set_label_text(self.chilabels[int(top_mutinfs_chi_j[1])]) 
+             self.axlist[3].imshow(Pij_top_mutinfs[2], **smallfmt)
+             self.axlist[3].xaxis.set_label_text(self.chilabels[int(top_mutinfs_chi_i[2])]) 
+             self.axlist[3].yaxis.set_label_text(self.chilabels[int(top_mutinfs_chi_j[2])]) 
              plt.draw()
         
 
@@ -45,8 +71,8 @@ class mutInfmat(object):
     the best 2D plot is used to 
     
     """
-    def __init__(self, myfilename):
-        self.mymatrix, self.resnames, self.junk  = read_res_matrix(myfilename)
+    def __init__(self, myfilename, poslist):
+        self.mymatrix, self.resnames, self.junk  = read_res_matrix(myfilename,poslist)
         self.eigvals, self.eigvecs = sortedeig(self.mymatrix)
     
     def unsort(self):
@@ -78,9 +104,18 @@ class mutInfmat(object):
         ticknum=np.arange(4, len(self.resnames),5)
         ticklabel=self.resnames[4: len(self.resnames): 5]
 
-        fig = plt.figure(figsize=(20,8))
-        ax = fig.add_subplot(111)
+        fig = plt.figure()  #figsize=(20,12))
+        #ax = fig.add_subplot(111)
         #ax2 = fig.add_subplot(122)
+
+        #try setting up a grid of axes in the same figure (should use axes_grid1??)
+        
+        
+        ax = fig.add_axes((0.1,0.1,0.65,0.8))
+        smallax1 = fig.add_axes((0.8,0.70,0.15,0.25))
+        smallax2 = fig.add_axes((0.8,0.40,0.15,0.25))
+        smallax3 = fig.add_axes((0.8,0.10,0.15,0.25))
+
         im = ax.imshow(self.mymatrix,cmap=plt.cm.Blues,interpolation='nearest')
         im.set_clim(0,0.5)
 
@@ -89,8 +124,8 @@ class mutInfmat(object):
         ax.set_ylim(0,len(self.resnames)-1)
 	ax.set_yticklabels(ticklabel)
 	for tick in ax.yaxis.get_major_ticks():
-	    tick.label1On = False
-	    tick.label2On = True
+	    tick.label1On = True
+	    tick.label2On = False
 	    tick.tick1On = False
 	    tick.tick2On = False
 	for label in ax.yaxis.get_ticklabels():
@@ -100,7 +135,7 @@ class mutInfmat(object):
         def clicked(event):
             print 'click'
 
-        browser = ImageBrowser(ax,ax) 
+        browser = ImageBrowser((ax,smallax1,smallax2,smallax3)) 
         #cid = fig.canvas.mpl_connect('button_press_event', browser.onClick) 
         #cid2 = fig.canvas.mpl_connect('button_press_event', browser.onpress)
         #cid3 = fig.canvas.mpl_connect('button_press_event', clicked)
@@ -282,16 +317,16 @@ class mutInfmat(object):
 	return filtmat
 
 
-#class sector(object):
-#    """
-#    a sector can be defined as in SCA 4.0, or as a direction in the space spanned by 
-#    the eigenvectors associated with the largest (most significant) eigenvalues
-#    """
-#    def __init__(self,name,members,weights,seccolor):
-#        self.name = name
-#	self.members = members
-#        self.weights = weights
-#        self.seccolor = seccolor
+class sector(object):
+    """
+    a sector can be defined as in SCA 4.0, or as a direction in the space spanned by 
+    the eigenvectors associated with the largest (most significant) eigenvalues
+    """
+    def __init__(self,name,members,weights,seccolor):
+        self.name = name
+	self.members = members
+        self.weights = weights
+        self.seccolor = seccolor
 
 def sortedeig(mymatrix):
     """
@@ -305,40 +340,61 @@ def sortedeig(mymatrix):
     eigvecs = eigvecs[:,indx[::-1]]
     return eigvals, eigvecs
 
-def read_res_matrix(myfilename):
+def read_res_matrix(myfilename,pos_list=[]):
     """
-    very slightly modified version of read_res_matrix from res_utils.py.
+    very sloppily modified version of read_res_matrix from res_utils.py.
     Changed appended name in myname_num loop.
+    Allowed for list of positions, rather than full read.
+    Only will return square matrix.
     """
     rownames = []
     colnames = []
     myfile = open(myfilename, 'r')
     inlines = myfile.readlines()
     myfile.close()
-    res = inlines[0].split()
-    mymatrix = np.zeros((int(len(inlines[1:])), int(len(res))), float64)
+    colnames = inlines[0].split()
+    
 
-    for myname_num in res:
-        colnames.append(myname_num)
-    for row_num in range(int(len(inlines[1:]))):
+    if pos_list==[]:
+        mymatrix = np.zeros((int(len(inlines[1:])), int(len(colnames))), float64)
+        lineList=range(int(len(inlines[1:])))
+    else:
+        lineList=pos_list
+        mymatrix = np.zeros((int(len(lineList)), int(len(lineList))), float64)
+
+    print mymatrix
+
+    colCounter=0
+    rowCounter=0
+    for row_num in lineList:
         thisline = inlines[row_num + 1]
         thislinedata = thisline.split()
         thisname = thislinedata[0]
-        res_num = int(np.floor(row_num))
-        thislinenums = map(float, thislinedata[1:])
+        res_num = rowCounter #int(np.floor(row_num))
+        rowCounter=rowCounter+1
+        thislinenums = map(float, lineList) #thislinedata[1:])
         thislinearray = np.array(thislinenums, float64)
+        print thislinearray
         rownames.append(thisname)
-        for col_num in range(len(colnames)):
-            mymatrix[res_num,col_num] = float64(thislinearray[col_num])
+        for col_num in lineList:
+            print res_num, colCounter
+            mymatrix[res_num,colCounter] = float64(thislinearray[col_num])
+            colCounter=colCounter+1
+    #DEBUG
+    #print res, colnames, res==colnames
+    #end DEBUG
     return mymatrix, rownames, colnames
 
 if __name__ == "__main__":
     print 'You are using matplotlib version '+matplotlib.__version__
     print 'You can make changes to global plotting options in '+matplotlib.matplotlib_fname()
-    j = mutInfmat('2esk_demo.txt')
+    j = mutInfmat('/usr/tmp/Ubc1p_wt/Ubc1p_wt.reslist-nsims6-structs20081-bin30_bootstrap_avg_mutinf_res_sum_0diag.txt',[1,2,3,4,5])
+                #'/home/ahs/r3/Ubc1/wt/Ubc1p_wt/Ubc1p_wt.reslist-nsims6-structs20081-bin30_bootstrap_avg_mutinf_res_sum_0diag.txt')
+		# '2esk_demo.txt')
+    fig1 = j.unsort()
     #fig1 = j.twoDxcc(1,2)
     #fig2 = j.twoDplot_vec(4)
     #fig3 = j.threeDplot(0,1,2)
-    fig, imbrowser = j.interUnsort()
-    cid = fig.canvas.mpl_connect('button_press_event', imbrowser.onClick)
+    #fig, imbrowser = j.interUnsort()
+    #cid = fig.canvas.mpl_connect('button_press_event', imbrowser.onClick)
     plt.show()
