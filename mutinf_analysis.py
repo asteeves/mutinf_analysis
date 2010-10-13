@@ -2,6 +2,7 @@
 
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 import numpy as np
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as ssd
@@ -12,8 +13,8 @@ from extremaModule import *
 
 #temporary stuff for testing Chris' plotting functions
 import sys
-sys.path.append('/home/mcclendon/trajtools/')
-from pairwise_histograms import *
+#sys.path.append('/home/mcclendon/trajtools/')
+#from pairwise_histograms import *
 
 
 class ImageBrowser:
@@ -84,16 +85,23 @@ class mutInfmat(object):
 	im = ax.matshow(self.mymatrix,cmap=plt.cm.Blues)
 	im.set_clim(0,0.5)
         
-	ax.set_yticks(np.arange(0,len(self.resnames)))
-	ax.set_yticklabels(self.resnames)
+	#this is ugly
+	#ax.set_yticks(np.arange(-1,len(self.resnames)+1))
+	#ax.set_yticklabels(['']+self.resnames)
+	#possibly fix using a custom ticker
+	def reslabels(x,pos):
+            if 0<=int(x)<len(self.resnames): return self.resnames[int(x)]
+	yformatter = FuncFormatter(reslabels)
+	ax.yaxis.set_major_formatter( yformatter )
+        ax.yaxis.set_minor_locator(matplotlib.ticker.MultipleLocator())
 	ax.set_xticks([])
 	for tick in ax.yaxis.get_major_ticks():
-	    tick.label1On = False
-	    tick.label2On = True
-	    tick.tick1On = False
+	    tick.label1On = True
+	    tick.label2On = False
+	    tick.tick1On = True
 	    tick.tick2On = False
-	for label in ax.yaxis.get_ticklabels():
-	    label.set_size(6)
+	#for label in ax.yaxis.get_ticklabels():
+	#    label.set_size(10)
 	ax.set_title('Unclustered MutInf matrix')
 	return fig
     
@@ -362,23 +370,27 @@ def read_res_matrix(myfilename,pos_list=[]):
         lineList=pos_list
         mymatrix = np.zeros((int(len(lineList)), int(len(lineList))), float64)
 
-    print mymatrix
+    #print mymatrix
 
-    colCounter=0
+
     rowCounter=0
     for row_num in lineList:
-        thisline = inlines[row_num + 1]
+        colCounter=0
+        thisline = inlines[row_num+1]
         thislinedata = thisline.split()
         thisname = thislinedata[0]
         res_num = rowCounter #int(np.floor(row_num))
         rowCounter=rowCounter+1
-        thislinenums = map(float, lineList) #thislinedata[1:])
+        thislinenums = map(float, thislinedata[1:])
         thislinearray = np.array(thislinenums, float64)
-        print thislinearray
+        #print 'thislinenums=',thislinenums
+	#print 'thislinearray= ',thislinearray
         rownames.append(thisname)
+	#print rownames
         for col_num in lineList:
-            print res_num, colCounter
+            #print res_num, colCounter
             mymatrix[res_num,colCounter] = float64(thislinearray[col_num])
+	    #print mymatrix
             colCounter=colCounter+1
     #DEBUG
     #print res, colnames, res==colnames
@@ -388,13 +400,13 @@ def read_res_matrix(myfilename,pos_list=[]):
 if __name__ == "__main__":
     print 'You are using matplotlib version '+matplotlib.__version__
     print 'You can make changes to global plotting options in '+matplotlib.matplotlib_fname()
-    j = mutInfmat('/usr/tmp/Ubc1p_wt/Ubc1p_wt.reslist-nsims6-structs20081-bin30_bootstrap_avg_mutinf_res_sum_0diag.txt',[1,2,3,4,5])
+    j = mutInfmat(#'/usr/tmp/Ubc1p_wt/Ubc1p_wt.reslist-nsims6-structs20081-bin30_bootstrap_avg_mutinf_res_sum_0diag.txt',[1,2,3,4,5])
                 #'/home/ahs/r3/Ubc1/wt/Ubc1p_wt/Ubc1p_wt.reslist-nsims6-structs20081-bin30_bootstrap_avg_mutinf_res_sum_0diag.txt')
-		# '2esk_demo.txt')
+		 '2esk_demo.txt',[])
     fig1 = j.unsort()
     #fig1 = j.twoDxcc(1,2)
     #fig2 = j.twoDplot_vec(4)
     #fig3 = j.threeDplot(0,1,2)
     #fig, imbrowser = j.interUnsort()
     #cid = fig.canvas.mpl_connect('button_press_event', imbrowser.onClick)
-    plt.show()
+    #plt.show()
