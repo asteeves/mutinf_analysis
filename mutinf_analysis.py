@@ -2,8 +2,9 @@
 
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 import numpy as np
+import re
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as ssd
 from mpl_toolkits.mplot3d import Axes3D
@@ -72,10 +73,13 @@ class mutInfmat(object):
     the best 2D plot is used to 
     
     """
-    def __init__(self, myfilename, poslist):
+    def __init__(self, myfilename, poslist=[]):
         self.mymatrix, self.resnames, self.junk  = read_res_matrix(myfilename,poslist)
+        self.resnums = []
+        for res in self.resnames: self.resnums.append(re.findall('\d+', res)[0]) 
+        #print self.resnums 
         self.eigvals, self.eigvecs = sortedeig(self.mymatrix)
-    
+        
     def unsort(self):
         """
 	Plots the unsorted mutual information matrix.
@@ -93,16 +97,21 @@ class mutInfmat(object):
             if 0<=int(x)<len(self.resnames): return self.resnames[int(x)]
 	yformatter = FuncFormatter(reslabels)
 	ax.yaxis.set_major_formatter( yformatter )
+        ax.yaxis.set_major_locator( MaxNLocator(30) )
         ax.yaxis.set_minor_locator(matplotlib.ticker.MultipleLocator())
-	ax.set_xticks([])
+	ax.xaxis.set_major_formatter( yformatter )
+        ax.xaxis.set_major_locator( MaxNLocator(30) )
+        ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator())
+
 	for tick in ax.yaxis.get_major_ticks():
 	    tick.label1On = True
 	    tick.label2On = False
 	    tick.tick1On = True
 	    tick.tick2On = False
+        for tick in ax.xaxis.get_major_ticks(): tick.label2On = False
 	#for label in ax.yaxis.get_ticklabels():
 	#    label.set_size(10)
-	ax.set_title('Unclustered MutInf matrix')
+	#ax.set_title('Unclustered MutInf matrix')
 	return fig
     
     def interUnsort(self):
@@ -159,10 +168,12 @@ class mutInfmat(object):
         links = sch.linkage(p,method='complete')
         dend = sch.dendrogram(links,no_plot=True)
         idx = dend['leaves']
+
 	#reorder the input matrices and labels according to the index determined by the clustering
         reordered = self.mymatrix[idx,:]
         reordered = reordered[:,idx]
 	reordres = [self.resnames[i] for i in idx]
+
         fig = plt.figure(figsize=(8,10),facecolor='w')
         ax1 = fig.add_axes([0.1,0.85,0.8,0.08],frameon=False)
         dend = sch.dendrogram(links,orientation='top')
@@ -174,7 +185,7 @@ class mutInfmat(object):
         reordered = reordered[:,idx]
         im = axmatrix.matshow(reordered, aspect='auto', origin='upper', cmap=plt.cm.binary)
         im.set_clim(0,1)
-        axmatrix.set_xticks(np.arange(1,len(self.resnames)))
+        axmatrix.set_xticks(np.arange(0,len(self.resnames)))
         axmatrix.set_xticklabels(reordres,rotation='vertical')
         axmatrix.set_yticks([])
         for tick in axmatrix.xaxis.get_major_ticks():
@@ -183,7 +194,7 @@ class mutInfmat(object):
 	for label in axmatrix.xaxis.get_ticklabels():
 	    label.set_rotation(90)
 	    label.set_size(8)
-	fig.suptitle('Clustered MutInf Heatmap',size=12.0)
+	#fig.suptitle('Clustered MutInf Heatmap',size=12.0)
 
     def twoDplots(self):
         """
@@ -203,7 +214,7 @@ class mutInfmat(object):
 	s3.scatter(self.eigvecs[:,1],self.eigvecs[:,3])
 	s3.set_xlabel(r'$|1>$')
 	s3.set_ylabel(r'$|3>$')
-	fig.suptitle('Eigenvector projections')
+	#fig.suptitle('Eigenvector projections')
         return fig
 
     def threeDplot(self,ind1,ind2,ind3):
@@ -216,7 +227,7 @@ class mutInfmat(object):
         """
 	Scan a trial ray around in a 2D space 
 	"""	
-	mymaps = (plt.cm.Blues, plt.cm.Reds, plt.cm.Greens)
+	mymaps = (plt.cm.Blues, plt.cm.Reds, plt.cm.Greens, plt.cm.Oranges, plt.cm.Purples)
 	eigv1=self.eigvecs[:,eigind1]
 	eigv2=self.eigvecs[:,eigind2]
 	numres=self.mymatrix.shape[0]
@@ -227,9 +238,9 @@ class mutInfmat(object):
 
 	#sigma0 currently a standin for a noise determined from the data, determines how many 
 	#sectors are identified in 
-	sigma0 = 0.1
+	sigma0 = 0.05
 	#similar cutoff determines the magnitude of the contribution required for sector membership
-	cutoff = 0.1 
+	cutoff = 0.05 
 	
 	for ai in np.arange(steps):
 	    alpha[ai] = ai*(360/steps)*np.pi/180
@@ -246,6 +257,8 @@ class mutInfmat(object):
 	
 	maxlocs, maxvals  = extrema(meritfunc,min=False)
 	maxangles = alpha[maxlocs]
+       
+        #print maxlocs, maxvals, maxangles
 
 	fig = plt.figure(figsize=(8,4))
 	ax1=fig.add_subplot(121)
@@ -269,7 +282,8 @@ class mutInfmat(object):
 
 	for secnum, secpos in enumerate(maxlocs):
 	    #find the residues that survive the cutoff criteria for each sector
-	    secname = 'sector'+str(secnum)
+	    #print secnum, secpos
+            secname = 'sector'+str(secnum)
 	    secind = np.nonzero(poscontrib[secpos,:]>cutoff)[0]#to get array from tuple
 	    weights = poscontrib[secpos,secind]
 	    seccol = mymaps[secnum]
@@ -279,8 +293,9 @@ class mutInfmat(object):
 
 	    #ax1.scatter(eigv1[secind],eigv2[secind],c=poscontrib[secpos,secind],cmap=mymaps[secnum])
 
-	#return maxlocs, maxvals, maxangles, poscontrib
-	self.listofsecs=listofsecs
+ 	#return maxlocs, maxvals, maxangles, poscontrib
+      	self.listofsecs=listofsecs
+        #print self.listofsecs
 
     def twoDplot_vec(self,limit):
         """
@@ -324,18 +339,40 @@ class mutInfmat(object):
 	    filtmat = filtmat+self.eigvals[eigind]*np.outer(self.eigvecs[:,eigind],self.eigvecs[:,eigind])
 	return filtmat
 
+    def write_pymol_sectors(self,pdb_fn):
+        """
+        Writes a pymol .pml 'script' that loads up the pdb and passes the selection of the sectors to that object 
+        """
+       
+        scr_fn = str(pdb_fn)+str(len(self.resnames))+'_sectors.pml'
+        scr_file = open(scr_fn, 'w')
 
+        scr_file.write('load '+pdb_fn+'\n')
+        scr_file.write('show spheres\n')
+        scr_file.write('color grey\n') 
+        for sec in self.listofsecs:
+            sec_res_names = np.array(self.resnums)[sec.members]
+            sec_res_string='+'.join(sec_res_names)
+            
+            print sec_res_names
+            scr_file.write('sele '+sec.name+', resi '+sec_res_string+'\n')
+            # would like to have this color to match the sector colors, but I don't know how to use the names correctly
+            scr_file.write('color '+sec.seccolor.name[:-1].lower()+', '+sec.name+'\n')
+             
+        scr_file.close()
+        
 class sector(object):
     """
     a sector can be defined as in SCA 4.0, or as a direction in the space spanned by 
     the eigenvectors associated with the largest (most significant) eigenvalues
     """
+
     def __init__(self,name,members,weights,seccolor):
         self.name = name
 	self.members = members
         self.weights = weights
         self.seccolor = seccolor
-
+        
 def sortedeig(mymatrix):
     """
     Diagonalizes the matrix given to it, and returns the eigenvectors and eigenvalues
@@ -348,7 +385,7 @@ def sortedeig(mymatrix):
     eigvecs = eigvecs[:,indx[::-1]]
     return eigvals, eigvecs
 
-def read_res_matrix(myfilename,pos_list=[]):
+def read_res_matrix(myfilename,pos_list):
     """
     very sloppily modified version of read_res_matrix from res_utils.py.
     Changed appended name in myname_num loop.
@@ -404,9 +441,9 @@ if __name__ == "__main__":
                 #'/home/ahs/r3/Ubc1/wt/Ubc1p_wt/Ubc1p_wt.reslist-nsims6-structs20081-bin30_bootstrap_avg_mutinf_res_sum_0diag.txt')
 		 '2esk_demo.txt',[])
     fig1 = j.unsort()
-    #fig1 = j.twoDxcc(1,2)
-    #fig2 = j.twoDplot_vec(4)
-    #fig3 = j.threeDplot(0,1,2)
+    fig2 = j.twoDxcc(1,2)
+    fig3 = j.twoDplot_vec(4)
+    #fig4 = j.threeDplot(0,1,2)
     #fig, imbrowser = j.interUnsort()
     #cid = fig.canvas.mpl_connect('button_press_event', imbrowser.onClick)
-    #plt.show()
+    plt.show()
