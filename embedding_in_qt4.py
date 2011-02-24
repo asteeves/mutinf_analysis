@@ -18,14 +18,16 @@ from numpy import arange, sin, pi
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+from mutinf_analysis import *
+
 progname = os.path.basename(sys.argv[0])
 progversion = "0.1"
 
 
 class MyMplCanvas(FigureCanvas):
     """Ultimately, this is a QWidget (as well as a FigureCanvasAgg, etc.)."""
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
+    def __init__(self, parent=None):
+        fig = Figure()
         self.axes = fig.add_subplot(111)
         # We want the axes cleared every time plot() is called
         self.axes.hold(False)
@@ -48,27 +50,21 @@ class MyMplCanvas(FigureCanvas):
 class MyStaticMplCanvas(MyMplCanvas):
     """Simple canvas with a sine plot."""
     def compute_initial_figure(self):
-        t = arange(0.0, 3.0, 0.01)
-        s = sin(2*pi*t)
-        self.axes.plot(t, s)
-
+        j = mutInfmat('2esk_demo.txt',[])
+        j.unsort(self.axes) 
+        
 
 class MyDynamicMplCanvas(MyMplCanvas):
     """A canvas that updates itself every second with a new plot."""
     def __init__(self, *args, **kwargs):
         MyMplCanvas.__init__(self, *args, **kwargs)
-        timer = QtCore.QTimer(self)
-        QtCore.QObject.connect(timer, QtCore.SIGNAL("timeout()"), self.update_figure)
-        timer.start(1000)
+        #timer = QtCore.QTimer(self)
+        #QtCore.QObject.connect(timer, QtCore.SIGNAL("timeout()"), self.update_figure)
+        #timer.start(1000)
 
-    def compute_initial_figure(self):
-         self.axes.plot([0, 1, 2, 3], [1, 2, 0, 4], 'r')
+    def update_figure(self,pos1,pos2):
 
-    def update_figure(self):
-        # Build a list of 4 random integers between 0 and 10 (both inclusive)
-        l = [ random.randint(0, 10) for i in xrange(4) ]
-
-        self.axes.plot([0, 1, 2, 3], l, 'r')
+        self.axes.scatter(int(pos1),int(pos2))
         self.draw()
 
 
@@ -81,8 +77,8 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.main_widget = QtGui.QWidget(self)
 
         l = QtGui.QGridLayout(self.main_widget)
-        sc = MyStaticMplCanvas(self.main_widget) #, width=5, height=4, dpi=100)
-        dc = MyDynamicMplCanvas(self.main_widget) #, width=5, height=4, dpi=100)
+        sc = MyStaticMplCanvas(self.main_widget) #, width=8, height=8)
+        self.dc = MyDynamicMplCanvas(self.main_widget) #, width=3, height=10)
         
 	self.edit1 = QtGui.QLineEdit(self)
 	label1= QtGui.QLabel(self)
@@ -94,9 +90,10 @@ class ApplicationWindow(QtGui.QMainWindow):
 	label2.setAlignment(QtCore.Qt.AlignRight)
 	label2.setText('Position 2')
 	
-	l.addWidget(sc,0,0)
-        l.addWidget(dc,0,1)
-	l.addWidget(self.edit1,1,1)
+	l.addWidget(sc,1,1,2,1)
+        l.addWidget(self.dc,1,1,1,2)
+
+	l.addWidget(self.edit1,2,)
         l.addWidget(label1,1,0)
 	l.addWidget(self.edit2,2,1)
 	l.addWidget(label2,2,0)
@@ -105,11 +102,14 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.setCentralWidget(self.main_widget)
 
         self.statusBar().showMessage("Just testing here.")
+    
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Return:
 	    print 'Position 1 is:', self.edit1.text()
             print 'Position 2 is:', self.edit2.text()
 	    #if self.edit.text()
+
+        self.dc.update_figure(self.edit1.text(),self.edit2.text())
 
     def fileQuit(self):
         self.close()
